@@ -87,7 +87,7 @@ def checkout_archive():
 def sync_checkout(cfg, ssh):
     """Replace the Pi's checkout with this one when they differ; -> the checkout path."""
     q = shlex.quote
-    repo = cfg.get('repo') or cfg['root'].rstrip('/') + '/repo'
+    repo = repo_path(cfg)
     digest, archive = checkout_archive()
     current = ssh(f'cat {q(repo)}/.sync-hash 2>/dev/null || true', capture_output=True).stdout
     if current.decode(errors='replace').strip() == digest:
@@ -103,6 +103,123 @@ def sync_checkout(cfg, ssh):
         input=archive)
     print(f'[pi] synced this checkout to {repo} ({digest[:12]}, {len(archive) // 1024} KB)', flush=True)
     return repo
+
+
+def repo_path(cfg):
+    return cfg.get('repo') or cfg['root'].rstrip('/') + '/repo'
+
+
+# Read-only facts for --status, one KEY=value per line; the checks mirror setup-pi.sh's.
+STATUS_SCRIPT = r'''
+export PATH="$PATH:/usr/sbin:/sbin"
+echo "kernel=$(uname -r)"
+ko="$root/driver/brcmfmac.ko"
+if [ -f "$ko" ]; then echo "driver_kernel=$(grep -a -o -m1 'vermagic=[^ ]*' "$ko" | head -n1 | cut -d= -f2)"; fi
+if [ -f "$root/nexmon/patches/bcm43455c0/7_45_206/nexmon/brcmfmac43455-sdio.bin" ]; then echo firmware=1; fi
+held="$(apt-mark showhold 2>/dev/null)"
+unheld=''
+for package in linux-image-rpi-v8 linux-image-rpi-2712 linux-headers-rpi-v8 linux-headers-rpi-2712; do
+    if dpkg-query -W "$package" >/dev/null 2>&1 && ! grep -qx "$package" <<<"$held"; then unheld+=" $package"; fi
+done
+echo "unheld=${unheld# }"
+lock=/run/pokepi-session.lock
+if [ -e "$lock" ] && ! flock -n "$lock" true; then echo session=1; fi
+echo "sync_hash=$(cat "$repo/.sync-hash" 2>/dev/null)"
+echo "firmware_path=$(cat /sys/module/firmware_class/parameters/path 2>/dev/null)"
+if [ -e /sys/class/net/mon0 ]; then echo monitor=1; fi
+if [ -f /run/pokepi-radio/restore.sh ]; then echo restore_script=1; fi
+for nic in eth0 wlan0; do
+    echo "addr_$nic=$(ip -4 -o addr show dev "$nic" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)"
+done
+'''
+
+
+def status(cfg, ssh):
+    """-> what the Pi tab shows: reachable, kernel and driver, firmware, hold, session, code, radio, addresses."""
+    import socket
+    q = shlex.quote
+    digest = checkout_archive()[0]
+    report = {'reachable': False, 'host': cfg['host'], 'local_code': digest[:12]}
+    try:
+        host_ip = socket.gethostbyname(cfg['host'])
+    except OSError:
+        host_ip = cfg['host']
+    try:
+        out = ssh('bash -s', input=(f'root={q(cfg["root"].rstrip("/"))}; repo={q(repo_path(cfg))}\n'
+                                    + STATUS_SCRIPT).encode(), capture_output=True, timeout=30).stdout
+    except subprocess.CalledProcessError as error:
+        why = error.stderr.decode(errors='replace').strip().splitlines()
+        report['error'] = why[-1] if why else f'ssh exited with status {error.returncode}'
+        return report
+    except subprocess.TimeoutExpired:
+        report['error'] = 'the Pi did not answer within 30 seconds'
+        return report
+    facts = dict(line.split('=', 1) for line in out.decode(errors='replace').splitlines() if '=' in line)
+    pi_code = facts.get('sync_hash', '')
+    report.update({
+        'reachable': True,
+        'kernel': facts.get('kernel', ''),
+        'driver_kernel': facts.get('driver_kernel', ''),
+        'driver_matches': bool(facts.get('driver_kernel')) and facts.get('driver_kernel') == facts.get('kernel'),
+        'firmware': facts.get('firmware') == '1',
+        'kernel_held': not facts.get('unheld'),
+        'unheld_packages': facts.get('unheld', '').split(),
+        'session_running': facts.get('session') == '1',
+        'pi_code': pi_code[:12],
+        'code_current': pi_code == digest,
+        # The patched driver is loaded while firmware_class points at the test firmware or mon0 exists.
+        'radio_patched': bool(facts.get('firmware_path')) or facts.get('monitor') == '1',
+        'restore_script': facts.get('restore_script') == '1',
+        'eth0': facts.get('addr_eth0', ''),
+        'wlan0': facts.get('addr_wlan0', ''),
+    })
+    # The radio session takes wlan0 down, so a profile pointing at it loses the Pi mid-trade.
+    report['host_on_wifi'] = bool(report['wlan0']) and host_ip == report['wlan0']
+    return report
+
+
+def check(cfg, ssh):
+    """Run the Pi's setup-pi.sh as the login user and stream it; -> its exit status."""
+    q = shlex.quote
+    script = repo_path(cfg) + '/examples/raspberry_pi/setup-pi.sh'
+    try:
+        ssh(f'POKEPI_ROOT={q(cfg["root"].rstrip("/"))} bash {q(script)}')
+    except subprocess.CalledProcessError as error:
+        return error.returncode
+    return 0
+
+
+RESTORE_SCRIPT = r'''
+lock=/run/pokepi-session.lock
+if [ -e "$lock" ] && ! flock -n "$lock" true; then
+    echo 'A Pi radio session is running; stop it before restoring Wi-Fi.' >&2; exit 3
+fi
+if [ -f /run/pokepi-radio/restore.sh ]; then exec /bin/bash /run/pokepi-radio/restore.sh; fi
+if [ -z "$(cat /sys/module/firmware_class/parameters/path 2>/dev/null)" ] && [ ! -e /sys/class/net/mon0 ]; then
+    echo 'restore: the stock Wi-Fi driver is already loaded'; exit 0
+fi
+echo '' > /sys/module/firmware_class/parameters/path
+iw dev mon0 del 2>/dev/null || true
+ip link set wlan0 down 2>/dev/null || true
+modprobe -r brcmfmac_wcc 2>/dev/null || true
+modprobe -r brcmfmac
+modprobe brcmfmac
+sleep 3
+nmcli device set wlan0 managed yes || true
+echo 'restore: stock Wi-Fi driver and firmware back'
+'''
+
+
+def restore_radio(cfg, ssh):
+    """Unload the patched driver and reload the stock one (the session's own restore.sh when present)."""
+    password = Path(cfg['sudo_password_file']).expanduser().read_text().strip()
+    if '\n' in password:
+        raise ValueError('Invalid sudo password file')
+    try:
+        ssh('sudo -S -p "" bash -c ' + shlex.quote(RESTORE_SCRIPT), input=(password + '\n').encode(), timeout=60)
+    except subprocess.CalledProcessError as error:
+        return error.returncode
+    return 0
 
 
 def save_trainer(received):
@@ -149,6 +266,14 @@ def main():
         cfg = profile(os.environ['POKEPI_CONNECTION'])
         sync_checkout(cfg, connection(cfg)[0])
         return
+    if '--status' in sys.argv[1:]:
+        cfg = profile(os.environ['POKEPI_CONNECTION'])
+        print(json.dumps(status(cfg, connection(cfg)[0]), indent=2), flush=True)
+        return
+    if '--check' in sys.argv[1:] or '--restore-radio' in sys.argv[1:]:
+        cfg = profile(os.environ['POKEPI_CONNECTION'])
+        action = check if '--check' in sys.argv[1:] else restore_radio
+        sys.exit(action(cfg, connection(cfg)[0]))
     parser = argparse.ArgumentParser()
     parser.add_argument('--tool', required=True)
     parser.add_argument('--trade-offer', action='append', required=True)

@@ -60,6 +60,7 @@ class App:
         self.identities: dict[str, board.Identity | str] = {}   # device -> identity, or why none answered
         self.chips: dict[str, str] = {}                         # device -> chip the last flash detected
         self.board_listeners: list = []                         # called on the UI loop after a check
+        self.run_listeners: list = []                           # (process, line) of each Games run, from its thread
         self.hidden_bridges: list[str] = []                     # Windows: bridges with no driver, polled
         self.update: update.Release | None = None               # a newer release GitHub offered
         self.update_state = ""                                  # checking, current, available, offline

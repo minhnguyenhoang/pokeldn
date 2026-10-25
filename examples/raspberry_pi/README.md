@@ -64,6 +64,29 @@ If the patched firmware crashes, the radio restore retries unloading the driver
 while its crash recovery holds it, then reloads the stock driver; if it never
 frees, the 360-second rollback timer tries again.
 
+### The Pi page
+
+With the Pi radio chosen, the app shows a **Pi** page: a light per check (SSH,
+driver against the kernel, Nexmon firmware, kernel hold, code in sync, stock or
+patched Wi-Fi driver), each red one saying what to do, and a warning when the
+profile's host is the Pi's Wi-Fi address, which a trade takes down. Its buttons
+sync the code, run `setup-pi.sh` and restore the stock Wi-Fi driver, and wait
+while a trade runs; its log shows the running trade's output with the `[pi]`
+lines picked out. Everything goes over the profile's SSH connection. The same
+actions from a shell:
+
+```sh
+POKEPI_CONNECTION=/path/to/pi-connection.json python bin/pi_remote.py --status   # JSON
+POKEPI_CONNECTION=/path/to/pi-connection.json python bin/pi_remote.py --check    # setup-pi.sh
+POKEPI_CONNECTION=/path/to/pi-connection.json python bin/pi_remote.py --restore-radio
+```
+
+On Windows, `Start pokeldn Pi.cmd` in the checkout starts the app on the Pi
+page with the Pi radio and the saved profile chosen (else `POKEPI_CONNECTION`,
+else `pi-connection.json` in the app's data folder). It uses a `gui-venv` and
+`gui-data` beside the checkout when present; `POKELDN_PYTHON` and
+`POKELDN_DATA` override them.
+
 Tested OS: Raspberry Pi OS Bookworm Lite 64-bit, kernel
 `6.12.109+rpt-rpi-v8`; Nexmon BCM43455c0 firmware `7_45_206`; Python 3.13.16,
 Trio 0.33.0, python-netlink 0.0.15, pycryptodome 3.23.0, zstandard 0.25.0,

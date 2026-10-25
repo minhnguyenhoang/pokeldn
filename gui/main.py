@@ -49,6 +49,7 @@ PAGES = (
     ("controller", tr('main.control_32d7e8', 'Control'), "joystick"),
     ("docs", tr('main.docs_7af023', 'Docs'), "book-open"),
 )
+PI = ("pi", "Pi", "radio")   # gui/views/pi.py, while Settings picks the Raspberry Pi radio
 PLUGINS = ("plugins", tr('main.plugins_9514b7', 'Plugins'), "plug")
 SETTINGS = ("settings", tr('main.settings_74a883', 'Settings'), "gear")
 UPDATE = ("update", tr('main.update_c1c100', 'Update'), "download")
@@ -106,6 +107,9 @@ def main(page: ft.Page) -> None:
         if key == "plugins":
             from gui.views.plugins import PluginsView
             return PluginsView(app)
+        if key == "pi":
+            from gui.views.pi import PiView
+            return PiView(app)
         from gui.views.settings import SettingsView
         return SettingsView(app)
 
@@ -133,10 +137,11 @@ def main(page: ft.Page) -> None:
             tooltip=tr('main.plugin_updates_1cc5ea', 'Plugin updates') if key == "plugins" and app.plugin_updates else label))
 
     def render_rail() -> None:
+        pages = PAGES + (PI,) * (app.settings.radio == "raspberry-pi")
         if t.compact:
-            tabs.controls = [item(p) for p in (*PAGES, PLUGINS, SETTINGS)]
+            tabs.controls = [item(p) for p in (*pages, PLUGINS, SETTINGS)]
             return
-        rail.controls = [item(p) for p in PAGES]
+        rail.controls = [item(p) for p in pages]
         bottom.controls = [item(UPDATE)] * bool(app.update and not (ANDROID or IOS)) + [item(PLUGINS), item(SETTINGS)]
 
     def navigate(key: str, **kwargs) -> None:
@@ -180,7 +185,8 @@ def main(page: ft.Page) -> None:
     window = t.backdrop(ft.Column([window_header(page), body], spacing=0, expand=True))
     window.padding = ft.Padding(t.GAP, 0, t.GAP, t.GAP)
     page.add(window)
-    navigate("games")
+    # bin/pi_launch.py (Start pokeldn Pi.cmd) opens on the Pi page.
+    navigate("pi" if os.environ.get("POKELDN_START_PAGE") == "pi" and app.settings.radio == "raspberry-pi" else "games")
     if not page.web:
         page.run_task(page.window.center)
     outcome = update.finish(update.install_root())

@@ -1119,6 +1119,8 @@ class SessionPanel:
                 self.app.ui(lambda: self.show_card(shown))
             return
         self.log.add(line)
+        for listener in getattr(self.app, "run_listeners", ()):   # gui/views/pi.py
+            listener(self.app.process, line)
         if saving := received.save_progress(line):
             self.app.ui(lambda: self.show_transfer(*saving))
         partner = online.update(self.partner_state, line)
