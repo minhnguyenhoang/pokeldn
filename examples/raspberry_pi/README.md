@@ -99,6 +99,12 @@ were tested. Violet, other games, Pi models, kernels, hosting, and repeated
 unattended trades have not been validated. Some received frames were
 rejected during testing; the current counter combines parse and integrity failures.
 
+Raspberry Pi 5 / kernel 6.18 / Debian 13 (Trixie) is a work in progress: the
+patched `brcmfmac` driver now builds cleanly there (see `kernel-compat.patch`),
+but the Nexmon firmware for the Pi 5 is not built yet and no radio session or
+trade has been run on a Pi 5. The software runtime and offline checks
+(`setup-pi.sh`) do pass on it.
+
 Keep Ethernet connected. Radio setup temporarily unloads the normal Wi-Fi driver
 and creates `mon0`; it restores the stock driver on exit. Do not run it through
 a Wi-Fi-only SSH connection. The scripts expect NetworkManager, systemd, iw, ip,
@@ -109,12 +115,19 @@ Prepare a data directory outside the checkout, referred to as `$POKEPI_ROOT`:
 * `nexmon/`: build [seemoo-lab/nexmon](https://github.com/seemoo-lab/nexmon),
   specifically `patches/bcm43455c0/7_45_206/nexmon`, and `utilities/nexutil`.
   The firmware must exist at that patch directory's `brcmfmac43455-sdio.bin`.
+  On the Pi 5 (same BCM43455 chip, Cypress firmware `7.45.265`), Nexmon's
+  compatibility table lists `7_45_234` as the bcm43455c0 patch; the Pi 5
+  firmware has not yet been built or verified in this fork.
 * `driver/`: the Kali brcmfmac-nexmon-dkms sources at commit
   `b3b2a8622a361cc8929fa3e153f4a87020361472` (tag `kali/6.12.2`). Apply
   `kernel-compat.patch` with `git apply`, then build against the running kernel:
   `make -C /lib/modules/$(uname -r)/build M="$PWD" -j2`.
-  The resulting module must be `driver/brcmfmac.ko`. The patch is specific to the
-  tested kernel; do not assume it applies to newer kernels.
+  The resulting module must be `driver/brcmfmac.ko`. `kernel-compat.patch` is
+  version-guarded for both the tested Pi 4 kernel (`6.12.109`) and the Pi 5's
+  6.18 line: it applies to the same pinned commit and builds cleanly against
+  `6.18.50+rpt-rpi-2712` on Debian 13 (compile-verified on a Pi 5; the radio
+  has not been live-traded there). Kernels outside those two lines may still
+  need work.
 * `runtime/`: a Python 3.13 virtual environment with the dependencies above and
   this repository's `vendor/LDN` installed. Run from a full source checkout.
 * `private/`: mode 0700, for persistent CCMP counters and received Pokémon files.

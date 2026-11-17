@@ -1,8 +1,6 @@
-diff --git a/bcmsdh.c b/bcmsdh.c
-index ac02244..aff7e0f 100644
 --- a/bcmsdh.c
 +++ b/bcmsdh.c
-@@ -991,7 +991,7 @@ static const struct sdio_device_id brcmf_sdmmc_ids[] = {
+@@ -991,7 +991,7 @@
  	BRCMF_SDIO_DEVICE(SDIO_DEVICE_ID_BROADCOM_4359),
  	BRCMF_SDIO_DEVICE(SDIO_DEVICE_ID_BROADCOM_CYPRESS_4373),
  	BRCMF_SDIO_DEVICE(SDIO_DEVICE_ID_BROADCOM_CYPRESS_43012),
@@ -11,8 +9,6 @@ index ac02244..aff7e0f 100644
  	BRCMF_SDIO_DEVICE(SDIO_DEVICE_ID_BROADCOM_CYPRESS_89359),
  	{ /* end: all zeroes */ }
  };
-diff --git a/cfg80211.c b/cfg80211.c
-index 5e2b750..2e71d52 100644
 --- a/cfg80211.c
 +++ b/cfg80211.c
 @@ -36,6 +36,11 @@
@@ -27,7 +23,7 @@ index 5e2b750..2e71d52 100644
  #define BRCMF_SCAN_IE_LEN_MAX		2048
  
  #define WPA_OUI				"\x00\x50\xF2"	/* WPA OUI */
-@@ -765,7 +770,8 @@ static struct wireless_dev *brcmf_cfg80211_add_iface(struct wiphy *wiphy,
+@@ -765,7 +770,8 @@
  }
  
  #ifdef NEXMON_MON_IF
@@ -37,7 +33,28 @@ index 5e2b750..2e71d52 100644
  static s32
  brcmf_cfg80211_nexmon_set_channel(struct wiphy *wiphy,struct cfg80211_chan_def *chandef) {
  #else
-@@ -2214,6 +2220,10 @@ brcmf_cfg80211_connect(struct wiphy *wiphy, struct net_device *ndev,
+@@ -827,7 +833,7 @@
+ 	cfg->scan_request = NULL;
+ 
+ 	if (timer_pending(&cfg->escan_timeout))
+-		del_timer_sync(&cfg->escan_timeout);
++		timer_delete_sync(&cfg->escan_timeout);
+ 
+ 	if (fw_abort) {
+ 		/* Do a scan abort to stop the driver's scan engine */
+@@ -1317,7 +1323,11 @@
+ 	return err;
+ }
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,17,0)
++static s32 brcmf_cfg80211_set_wiphy_params(struct wiphy *wiphy, int radio_idx, u32 changed)
++#else
+ static s32 brcmf_cfg80211_set_wiphy_params(struct wiphy *wiphy, u32 changed)
++#endif
+ {
+ 	struct brcmf_cfg80211_info *cfg = wiphy_to_cfg(wiphy);
+ 	struct net_device *ndev = cfg_to_ndev(cfg);
+@@ -2214,6 +2224,10 @@
  		goto done;
  	}
  	ssid_len = min_t(u32, sme->ssid_len, IEEE80211_MAX_SSID_LEN);
@@ -48,7 +65,49 @@ index 5e2b750..2e71d52 100644
  	ext_join_params->ssid_le.SSID_len = cpu_to_le32(ssid_len);
  	memcpy(&ext_join_params->ssid_le.SSID, sme->ssid, ssid_len);
  	if (ssid_len < IEEE80211_MAX_SSID_LEN)
-@@ -6165,6 +6175,8 @@ brcmf_notify_connect_status(struct brcmf_if *ifp,
+@@ -2324,8 +2338,14 @@
+ }
+ 
+ static s32
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,17,0)
++brcmf_cfg80211_set_tx_power(struct wiphy *wiphy, struct wireless_dev *wdev,
++			    int radio_idx,
++			    enum nl80211_tx_power_setting type, s32 mbm)
++#else
+ brcmf_cfg80211_set_tx_power(struct wiphy *wiphy, struct wireless_dev *wdev,
+ 			    enum nl80211_tx_power_setting type, s32 mbm)
++#endif
+ {
+ 	struct brcmf_cfg80211_info *cfg = wiphy_to_cfg(wiphy);
+ 	struct net_device *ndev = cfg_to_ndev(cfg);
+@@ -2375,8 +2395,13 @@
+ }
+ 
+ static s32
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,17,0)
++brcmf_cfg80211_get_tx_power(struct wiphy *wiphy, struct wireless_dev *wdev,
++			    int radio_idx, unsigned int link_id, s32 *dbm)
++#else
+ brcmf_cfg80211_get_tx_power(struct wiphy *wiphy, struct wireless_dev *wdev,
+ 			    s32 *dbm)
++#endif
+ {
+ 	struct brcmf_cfg80211_info *cfg = wiphy_to_cfg(wiphy);
+ 	struct brcmf_cfg80211_vif *vif = wdev_to_vif(wdev);
+@@ -3275,6 +3300,12 @@
+ 	brcmf_notify_escan_complete(cfg, cfg->escan_info.ifp, true, true);
+ }
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,16,0)
++/* from_timer() was renamed timer_container_of() in Linux 6.16. */
++#ifndef from_timer
++#define from_timer(var, cb, field) timer_container_of(var, cb, field)
++#endif
++#endif
+ static void brcmf_escan_timeout(struct timer_list *t)
+ {
+ 	struct brcmf_cfg80211_info *cfg =
+@@ -6165,6 +6196,8 @@
  	struct ieee80211_channel *chan;
  	s32 err = 0;
  
@@ -57,11 +116,66 @@ index 5e2b750..2e71d52 100644
  	if ((e->event_code == BRCMF_E_DEAUTH) ||
  	    (e->event_code == BRCMF_E_DEAUTH_IND) ||
  	    (e->event_code == BRCMF_E_DISASSOC_IND) ||
-diff --git a/sdio.c b/sdio.c
-index 08f7197..bffd215 100644
+--- a/btcoex.c
++++ b/btcoex.c
+@@ -270,6 +270,13 @@
+ /*
+  * brcmf_btcoex_timerfunc() - BT coex timer callback
+  */
++#include <linux/version.h>
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,16,0)
++/* from_timer() was renamed timer_container_of() in Linux 6.16. */
++#ifndef from_timer
++#define from_timer(var, cb, field) timer_container_of(var, cb, field)
++#endif
++#endif
+ static void brcmf_btcoex_timerfunc(struct timer_list *t)
+ {
+ 	struct brcmf_btcoex_info *bt_local = from_timer(bt_local, t, timer);
+@@ -289,7 +296,7 @@
+ 	btci = container_of(work, struct brcmf_btcoex_info, work);
+ 	if (btci->timer_on) {
+ 		btci->timer_on = false;
+-		del_timer_sync(&btci->timer);
++		timer_delete_sync(&btci->timer);
+ 	}
+ 
+ 	switch (btci->bt_state) {
+@@ -394,7 +401,7 @@
+ 
+ 	if (cfg->btcoex->timer_on) {
+ 		cfg->btcoex->timer_on = false;
+-		del_timer_sync(&cfg->btcoex->timer);
++		timer_delete_sync(&cfg->btcoex->timer);
+ 	}
+ 
+ 	cancel_work_sync(&cfg->btcoex->work);
+@@ -428,7 +435,7 @@
+ 	if (btci->timer_on) {
+ 		brcmf_dbg(INFO, "disable BT DHCP Timer\n");
+ 		btci->timer_on = false;
+-		del_timer_sync(&btci->timer);
++		timer_delete_sync(&btci->timer);
+ 
+ 		/* schedule worker if transition to IDLE is needed */
+ 		if (btci->bt_state != BRCMF_BT_DHCP_IDLE) {
 --- a/sdio.c
 +++ b/sdio.c
-@@ -4299,7 +4299,7 @@ static void brcmf_sdio_firmware_callback(struct device *dev, int err,
+@@ -4125,6 +4125,13 @@
+ 	return 0;
+ }
+ 
++#include <linux/version.h>
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,16,0)
++/* from_timer() was renamed timer_container_of() in Linux 6.16. */
++#ifndef from_timer
++#define from_timer(var, cb, field) timer_container_of(var, cb, field)
++#endif
++#endif
+ static void
+ brcmf_sdio_watchdog(struct timer_list *t)
+ {
+@@ -4299,7 +4306,7 @@
  
  		switch (sdiod->func1->device) {
  		case SDIO_DEVICE_ID_BROADCOM_CYPRESS_4373:
@@ -70,3 +184,12 @@ index 08f7197..bffd215 100644
  			brcmf_dbg(INFO, "set F2 watermark to 0x%x*4 bytes\n",
  				  CY_4373_F2_WATERMARK);
  			brcmf_sdiod_writeb(sdiod, SBSDIO_WATERMARK,
+@@ -4645,7 +4652,7 @@
+ {
+ 	/* Totally stop the timer */
+ 	if (!active && bus->wd_active) {
+-		del_timer_sync(&bus->timer);
++		timer_delete_sync(&bus->timer);
+ 		bus->wd_active = false;
+ 		return;
+ 	}
