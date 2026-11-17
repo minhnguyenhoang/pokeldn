@@ -199,11 +199,18 @@ physical access to power-cycle as a last resort (a reboot reloads the stock
 driver). A self-test that loads the stack, creates `mon0`, then restores,
 without trading (replace the paths):
 
+Use **absolute paths** here, and pass the data directory and checkout as
+`--setenv` so they are referenced as `$POKEPI_ROOT`/`$REPO` inside the command: a
+`systemd-run` unit has no `$HOME` and does not expand `~`, so a `$HOME` or `~`
+path written directly in the `bash -c` silently becomes a wrong path and the run
+fails at once. Replace `/home/you` with your home.
+
 ```sh
 sudo systemd-run --unit=pokepi-selftest --collect \
-  --setenv=POKEPI_ROOT=$HOME/pokemon-pi --setenv=POKEPI_ROLLBACK_SECONDS=60 \
-  bash -c 'bash $HOME/pokeldn-pi/examples/raspberry_pi/test-radio.sh \
-    > $HOME/pokemon-pi/selftest.log 2>&1'
+  --setenv=POKEPI_ROOT=/home/you/pokemon-pi \
+  --setenv=REPO=/home/you/pokeldn-pi \
+  --setenv=POKEPI_ROLLBACK_SECONDS=60 \
+  bash -c 'bash "$REPO/examples/raspberry_pi/test-radio.sh" > "$POKEPI_ROOT/selftest.log" 2>&1'
 ```
 
 Reconnect after ~90 s, then read `selftest.log` and
@@ -218,10 +225,11 @@ the same way:
 
 ```sh
 sudo systemd-run --unit=pokepi-trade --collect \
-  --setenv=POKEPI_ROOT=$HOME/pokemon-pi \
-  --setenv=POKEPI_KEYS=$HOME/pokemon-pi/private/prod.keys \
-  bash -c 'bash $HOME/pokeldn-pi/scripts/run_with_wifi_restore.sh \
-    run_trade.sh /path/to/validated.offer.bin > $HOME/pokemon-pi/trade.log 2>&1'
+  --setenv=POKEPI_ROOT=/home/you/pokemon-pi \
+  --setenv=POKEPI_KEYS=/home/you/pokemon-pi/private/prod.keys \
+  --setenv=REPO=/home/you/pokeldn-pi \
+  bash -c 'bash "$REPO/scripts/run_with_wifi_restore.sh" run_trade.sh \
+    "$POKEPI_ROOT/offers/your.offer" > "$POKEPI_ROOT/trade.log" 2>&1'
 ```
 
 Start the Switch's Z-A Link Trade search before launching, confirm the exchange
