@@ -276,6 +276,45 @@ Completion in the log records the engine sending its final step; verify arrival
 on the console. A disconnect during a trade requires checking the console's state
 before attempting another exchange.
 
+### Preparing an offer from a PKHeX record
+
+PKHeX entity files (`.pk9`, `.pa9`, `.pk8`, `.pa8`, `.pb8`, `.pb7`, `.pk3`) each
+hold one Pokémon as a **decrypted** record. `scripts/make_offer.sh <game> <file>
+[output]` — and the per-game wrappers `make_za_offer.sh`, `make_sv_offer.sh`,
+`make_swsh_offer.sh`, `make_bdsp_offer.sh`, `make_pla_offer.sh`,
+`make_lgpe_offer.sh`, `make_frlg_offer.sh` — turn one into the offer its launcher
+consumes, via `pokeldn.pokemon.offer_bytes`. They do **not** run PKHeX, so the
+record must already be legal.
+
+What each game produces:
+
+| Game | `make_offer.sh` game | input | result |
+|---|---|---|---|
+| Legends Z-A | `za` | 344-byte party `.pa9` | a **354-byte `.bin`** (header + re-encrypted record + refreshed checksum) |
+| Let's Go | `lgpe` | `.pb7` | a 232-byte offer |
+| Scarlet/Violet | `sv` | `.pk9` | the record itself (the joiner frames it on the wire) |
+| Sword/Shield | `swsh` | `.pk8` | the record itself |
+| BDSP | `bdsp` | `.pb8` | the record itself |
+| Legends Arceus | `pla` | `.pa8` | the record itself |
+| FireRed/LeafGreen | `frlg` | `.pk3` | the record itself |
+
+So only **Legends Z-A** produces a distinct `.bin`; for every other title the
+PKHeX record file *is* the offer, and `make_<game>_offer.sh` just normalizes and
+copies it (you can also hand the record straight to `run_trade.sh`). The default
+output is `$POKEPI_ROOT/offers/<name>.<game>.offer`, or pass an explicit path.
+
+```sh
+scripts/make_za_offer.sh ~/Chansey.pa9             # -> offers/Chansey.za.offer (354 bytes)
+scripts/make_sv_offer.sh ~/Koraidon.pk9            # -> the .pk9, normalized and copied
+scripts/make_offer.sh pla ~/Arceus.pa8 ~/arc.bin   # explicit game and output path
+```
+
+**Size note (Z-A only):** the Z-A offer needs the **344-byte party** record. If
+`make_za_offer.sh` refuses a file as *"N bytes; need a 344-byte party record"*,
+the export is the shorter 328-byte *stored* form; rebuild it in party form
+through the app's builder. Records pokeldn itself builds or receives are already
+party-sized, so they frame straight away.
+
 ### Other games on the shell path
 
 The joiner is game-generic (`raw_profile.py` is a per-title table). Select the
