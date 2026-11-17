@@ -250,6 +250,27 @@ Completion in the log records the engine sending its final step; verify arrival
 on the console. A disconnect during a trade requires checking the console's state
 before attempting another exchange.
 
+### Other games on the shell path
+
+The joiner is game-generic (`raw_profile.py` is a per-title table). Select the
+title with `POKEPI_GAME`:
+
+| `POKEPI_GAME` | title | status |
+|---|---|---|
+| `za` (default) | Legends Z-A | hardware-verified (Pi 4) |
+| `sv` | Scarlet/Violet | hardware-verified (Pi 4) |
+| `pla` | Legends Arceus | **wired, experimental — not yet tested on a Pi** |
+
+Legends Arceus joining reuses upstream's complete `pla_join` engine
+(`raw_pla.py`) over the same userspace-IP bridge. Run it like the Z-A trade with
+`POKEPI_GAME=pla` and a prepared `.pa8` record (framing is a pass-through for
+PLA, so the record itself is the offer). Two values can only be confirmed
+against a live console: the LDN application version (set to PLA's
+`SYS_COMM_VERSION`) and host-handoff handling (PLA is treated like Z-A, which
+has no handoff). Sword/Shield and BDSP are **not** wired: their upstream
+`*_join.py` are LDN association probes with no trade engine (and BDSP also uses
+Pia 5), so each needs its join-trade path built first.
+
 ## Offline check
 
 ```sh

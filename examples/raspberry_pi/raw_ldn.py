@@ -206,8 +206,12 @@ async def authenticate(monitor, target, source, radiotap, keys):
                     if participant.connected and participant.mac_address == source:
                         seat_wait.deadline = float('inf')
                         print(f'LDN seat confirmed: index={index}, ip={participant.ip_address}, host={current.participants[0].ip_address}', flush=True)
-                        if raw_profile.game() == 'sv':
+                        selected = raw_profile.game()
+                        if selected == 'sv':
                             from raw_sv import trade
+                            await trade(interface, participant.ip_address, current.participants[0].ip_address)
+                        elif selected == 'pla':
+                            from raw_pla import trade
                             await trade(interface, participant.ip_address, current.participants[0].ip_address)
                         else:
                             await probe_data(interface, participant.ip_address, current.participants[0].ip_address)
