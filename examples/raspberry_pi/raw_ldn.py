@@ -181,6 +181,8 @@ async def probe_data(interface, local_ip, host_ip):
 
 async def authenticate(monitor, target, source, radiotap, keys):
     passphrase, app_version = raw_profile.credentials()
+    if app_version is None:            # Sword/Shield: associate with the advertised version
+        app_version = getattr(target, 'app_version', 0)
     derivation = ldn.KeyDerivation(keys, target.protocol)
     key = derivation.derive_data_key(target.server_random, passphrase)
     interface = RawStation(monitor, target, source, key, radiotap)
@@ -212,6 +214,9 @@ async def authenticate(monitor, target, source, radiotap, keys):
                             await trade(interface, participant.ip_address, current.participants[0].ip_address)
                         elif selected == 'pla':
                             from raw_pla import trade
+                            await trade(interface, participant.ip_address, current.participants[0].ip_address)
+                        elif selected == 'swsh':
+                            from raw_swsh import trade
                             await trade(interface, participant.ip_address, current.participants[0].ip_address)
                         else:
                             await probe_data(interface, participant.ip_address, current.participants[0].ip_address)

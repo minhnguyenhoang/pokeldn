@@ -6,7 +6,10 @@ Scarlet/Violet are hardware-verified; Legends Arceus is wired but not yet tested
 on a Pi (docs: examples/raspberry_pi/README.md)."""
 import os
 
-SUPPORTED = ('za', 'sv', 'pla')
+SUPPORTED = ('za', 'sv', 'pla', 'swsh')
+
+# The Sword/Shield Link Trade network (the Y-Comm beacon at 65535 is skipped).
+SWSH_TRADE_SCENE = 60001
 
 
 class HandedOff(RuntimeError):
@@ -48,6 +51,12 @@ def session_code(network):
             except (ValueError, IndexError, KeyError):
                 return None
         return None
+    if g == 'swsh':
+        from pokeldn import swsh
+        if (network.local_communication_id == swsh.COMM_ID
+                and network.scene_id == SWSH_TRADE_SCENE):
+            return ''  # a Link Trade search; no link code is needed to match
+        return None
     from pokeldn import za
     if network.local_communication_id != za.COMM_ID:
         return None
@@ -79,5 +88,10 @@ def credentials():
     if g == 'pla':
         from pokeldn import pla
         return pla.PASSPHRASE, pla.SYS_COMM_VERSION
+    if g == 'swsh':
+        from pokeldn import swsh
+        # None: Sword/Shield associates with the app version the console advertises,
+        # so the joiner uses the scanned network's value (raw_ldn.py).
+        return swsh.PASSPHRASE, None
     from pokeldn import za
     return za.PASSPHRASE, 6
