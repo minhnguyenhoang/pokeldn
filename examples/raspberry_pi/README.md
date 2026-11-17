@@ -234,6 +234,8 @@ Prepare and validate a Z-A Pokémon through the upstream builder. The runner tak
 a **354-byte framed Z-A offer**, not a raw `.pa9` file. Upstream
 `pokeldn.pokemon.offer_bytes('za', decrypted_party_bytes)` creates this framing.
 Validate the record before framing; the runner does not perform a legality check.
+`scripts/make_za_offer.sh <file.pa9>` (or `scripts/make_offer.sh <game> <file>`
+for any supported game) runs that framing from a prepared record.
 
 ```sh
 sudo env POKEPI_ROOT=/path/to/pi-data POKEPI_KEYS=/path/to/private/prod.keys \
