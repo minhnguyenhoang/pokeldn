@@ -19,7 +19,10 @@ async def trade(interface, local_ip, host_ip):
     args = upstream.build_parser().parse_args([])
     args.ifname = 'pokepi-raw'
     args.trade_offer = [os.environ['POKEPI_TRADE_OFFER']]
-    args.offer_out = os.environ['POKEPI_RECEIVED']
+    destination = DATA_ROOT / 'private/received'
+    destination.mkdir(mode=0o700, exist_ok=True)
+    args.offer_out = os.environ.get('POKEPI_RECEIVED') or str(
+        destination / (time.strftime('%Y%m%d-%H%M%S') + '.pk9'))
     args.trainer_name = os.environ.get('POKEPI_TRAINER', 'PI-TEST')
     args.session_join = args.answer_migration = args.net_ack = args.game_channel = True
     args.ack_flags = 0
