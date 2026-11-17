@@ -4,7 +4,12 @@ root="${POKEPI_ROOT:-$HOME/pokemon-pi}"
 testdir=/run/pokepi-radio
 mkdir -p "$testdir/brcm"
 cp "$root/nexmon/patches/bcm43455c0/7_45_206/nexmon/brcmfmac43455-sdio.bin" "$testdir/brcm/"
-cp "$testdir/brcm/brcmfmac43455-sdio.bin" "$testdir/brcm/brcmfmac43455-sdio.raspberrypi,4-model-b.bin"
+# Copy to the running board's firmware name too (Pi 4: raspberrypi,4-model-b,
+# Pi 5: raspberrypi,5-model-b, ...); brcmfmac requests it before the generic name.
+board=$(tr '\0' '\n' < /proc/device-tree/compatible 2>/dev/null | head -1)
+if [[ -n "$board" ]]; then
+    cp "$testdir/brcm/brcmfmac43455-sdio.bin" "$testdir/brcm/brcmfmac43455-sdio.$board.bin"
+fi
 cat > "$testdir/restore.sh" <<'RESTORE'
 #!/bin/bash
 echo '' > /sys/module/firmware_class/parameters/path
@@ -16,6 +21,7 @@ for attempt in 1 2 3 4 5 6 7 8 9 10; do
     iw dev mon0 del 2>/dev/null || true
     ip link set wlan0 down 2>/dev/null || true
     modprobe -r brcmfmac_wcc 2>/dev/null || true
+    modprobe -r brcmfmac_cyw 2>/dev/null || true
     if modprobe -r brcmfmac 2>/dev/null || ! grep -q '^brcmfmac ' /proc/modules; then
         removed=1
         break
@@ -40,7 +46,12 @@ nmcli device set wlan0 managed no
 nmcli radio wifi on
 rfkill unblock wifi
 ip link set wlan0 down
-modprobe -r brcmfmac_wcc
+# Unload whichever firmware-vendor submodule is loaded before brcmfmac. Pi 4 /
+# older kernels use brcmfmac_wcc; Pi 5 / newer kernels use brcmfmac_cyw. Each
+# holds brcmfmac open, so brcmfmac will not unload until its vendor module is gone.
+for vendor in brcmfmac_wcc brcmfmac_cyw; do
+    modprobe -r "$vendor" 2>/dev/null || true
+done
 modprobe -r brcmfmac
 echo "$testdir" > /sys/module/firmware_class/parameters/path
 # modprobe -r can drop these as unused deps (e.g. after a firmware-crash reload); insmod won't pull them back.

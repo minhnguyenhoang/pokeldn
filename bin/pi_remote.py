@@ -202,6 +202,7 @@ echo '' > /sys/module/firmware_class/parameters/path
 iw dev mon0 del 2>/dev/null || true
 ip link set wlan0 down 2>/dev/null || true
 modprobe -r brcmfmac_wcc 2>/dev/null || true
+modprobe -r brcmfmac_cyw 2>/dev/null || true
 modprobe -r brcmfmac
 modprobe brcmfmac
 sleep 3
