@@ -228,6 +228,32 @@ Start the Switch's Z-A Link Trade search before launching, confirm the exchange
 on the console during the run, then reconnect and read `trade.log` and
 `$POKEPI_ROOT/private/received/`.
 
+### Environment options
+
+Every setting is an environment variable, so pass them with `--setenv=` on the
+detached `systemd-run` launch above (or `export` them before a foreground run).
+`run_with_wifi_restore.sh` passes the whole environment through to the radio
+script it wraps, which forwards it to the radio bring-up and the joiner.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `POKEPI_ROOT` | `~/pokemon-pi` | the prepared data directory (`runtime/`, `driver/`, `nexmon/`, `private/`) |
+| `POKEPI_KEYS` | — (**required**) | path to your `prod.keys` |
+| `POKEPI_GAME` | `za` | title to join: `za`, `sv`, or `pla` (experimental) |
+| `POKEPI_CODE` | `za`/`pla`: join any; `sv`: exact match | the link code to match the console's search |
+| `POKEPI_TRADE_OFFER` | set by `run_trade.sh` | the offer file; `run_trade.sh` sets it from its argument, so you do not set it directly |
+| `POKEPI_RECEIVED` | timestamped file in `private/received/` | where the record the console trades is written |
+| `POKEPI_TRAINER` | `PI-TEST` | the trainer / LDN node name the console sees |
+| `POKEPI_RETRY_SECONDS` | `150` | how long to rescan and rejoin after a join fails, before any trade begins |
+| `POKEPI_ROLLBACK_SECONDS` | `360` (trade), `180` (session) | detached timer that force-restores the stock Wi-Fi driver; the wrapper's own restore runs first |
+| `POKEPI_HOLD_SECONDS` | `12` | `run_session.sh` only: how long to hold the LDN seat (12–60), set from its argument |
+| `POKEPI_TX_GAP_MS` | `5` | pacing gap between injected frames, in milliseconds |
+| `POKEPI_BSSID_ONLY` | `0` | `1` enables the experimental explicit-BSSID join (the driver's `pokepi_bssid_only` parameter), applied at radio bring-up |
+
+`POKEPI_ROOT` and `POKEPI_KEYS` are required for a trade; the rest have working
+defaults. For example, a Scarlet/Violet trade with a link code is just
+`--setenv=POKEPI_GAME=sv --setenv=POKEPI_CODE=12345678` added to the launch.
+
 ## Trading
 
 Prepare and validate a Z-A Pokémon through the upstream builder. The runner takes
