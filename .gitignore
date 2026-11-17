@@ -59,6 +59,8 @@ __pycache__/
 # Editable installs of the vendored LDN package create local packaging
 # metadata beside setup.py. It is reproducible and must not block Pi updates.
 *.egg-info/
+# `pip install vendor/LDN` (setup-pi.sh) also drops a build/ tree beside setup.py.
+/vendor/**/build/
 
 # Runtime logs, protocol traces, and packet captures may contain console,
 # trainer, or network identifiers and should stay local.
